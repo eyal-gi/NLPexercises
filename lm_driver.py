@@ -7,7 +7,7 @@ nt = ex1.normalize_text(text) #lower casing, padding punctuation with white spac
 print(nt)
 lm = ex1.Ngram_Language_Model(n=3, chars=False)
 lm.build_model(nt)  #*
-print(lm.get_model()) #*
+print(lm.get_model_dictionary()) #*
 t = lm.generate(context = 'a cat',n=30)
 for e in [t, 'a cat sat on the mat','the rat sat on the cat' ]: #*
     print('%s | %.3f' %(e, lm.evaluate(e)))
