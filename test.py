@@ -16,9 +16,10 @@ lm.build_model(nt)  #*
 
 # nt = re.sub('(?<! )(?=[.,!?()])|(?<=[.,!?()>])(?!abc)', r' ', "abc,")
 lm.generate('a cat')
-print(lm.evaluate('a rat sat on the mat .'))
-print(math.exp(-4.297))
-print(lm.evaluate('the rat sat on the cat .'))
+# print(lm.evaluate(lm.generate('a cat', n=30)))
+print(lm.evaluate("a cat sat on the mat"))
+print(lm.get_model_dictionary())
+# print(lm.evaluate('the rat sat on the cat .'))
 n=3
 str = 'a cat'
 # new = str.split(' ')

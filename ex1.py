@@ -159,7 +159,10 @@ class Ngram_Language_Model:
 
             for i in range(0,text_len-(self.n-1)):
                 ngram = " ".join(text_list[i:i+self.n])
+                print(ngram)
                 nm_gram = " ".join(text_list[i:i+self.n-1])
+                print(nm_gram)
+                print(math.log(self.model_dict[ngram]/self.nminus_dict[nm_gram]))
                 log_probs.append(math.log(self.model_dict[ngram]/self.nminus_dict[nm_gram]))
 
         return sum(log_probs)
