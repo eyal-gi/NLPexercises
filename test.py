@@ -15,13 +15,15 @@ lm.build_model(nt)  #*
 # print(lm.get_model_dictionary())
 
 # nt = re.sub('(?<! )(?=[.,!?()])|(?<=[.,!?()>])(?!abc)', r' ', "abc,")
-lm.generate('a cat')
-# print(lm.evaluate(lm.generate('a cat', n=30)))
-print(lm.evaluate("a cat sat on the mat"))
-print(lm.get_model_dictionary())
-# print(lm.evaluate('the rat sat on the cat .'))
-n=3
-str = 'a cat'
+t = lm.generate('a cat', n=30)
+print(t)
+print(lm.evaluate(t))
+# print(lm.evaluate("a cat sat on the mat . a fat cat sat on the mat . a bat spat on the mat . a rat sat on the mat ."))
+# print(lm.evaluate("a cat sat on the mat"))
+# print(lm.evaluate('the rat sat on the cat'))
+# # print(lm.get_model_dictionary())
+# n=3
+# str = 'a cat'
 # new = str.split(' ')
 #
 # new = new[len(new)-(n-1):]
