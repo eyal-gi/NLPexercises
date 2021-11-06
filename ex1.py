@@ -34,19 +34,17 @@ class Ngram_Language_Model:
                 text (str): the text to construct the model from.
         """
         tokens = re.split(r'\s+', text)  # create a list of words out of the corpora
-        tokens.remove('')
-
-        modified_tokens = tokens.copy()
-        modified_tokens.append('</s>')
 
         # Every tuple of n words is joined to a string, and the Counter func creates a dict with counts
         self.model_dict = defaultdict(int, collections.Counter(
-            " ".join(tuple(tokens[i:i + self.n])) for i in range(len(tokens) - self.n)))
+            " ".join(tuple(tokens[i:i + self.n])) for i in range(len(tokens) - self.n+1)))
 
         # a dictionary of every possible n-gram dictionary.
-        for j in range(1, self.n):
+        for j in range(self.n):
             self.ngrams_dict[self.n - j] = defaultdict(int, collections.Counter(
                 " ".join(tuple(tokens[i:i + self.n - j])) for i in range(len(tokens) - (self.n - j))))
+
+
             # self.ngrams_dict[self.n - j][" ".join(tuple(tokens[len(tokens)-j:len(tokens)]))] -= 1
 
         self.vocabulary = set(tokens)
@@ -61,13 +59,14 @@ class Ngram_Language_Model:
         """
         return self.n
 
-    def P(self, candidate, context):
+    def P(self, candidate, context, given_n=None):
         sequence = context.copy()
         sequence.append(candidate)
-        # if (" ".join(context)=='' | " ".join(context)==' '):
-        #     return
+        if given_n is None:
+            return self.model_dict[" ".join(sequence)] / self.ngrams_dict[self.n - 1][" ".join(context)]
 
-        return self.model_dict[" ".join(sequence)] / self.ngrams_dict[self.n - 1][" ".join(context)]
+        return self.ngrams_dict[given_n][" ".join(sequence)] / self.ngrams_dict[given_n-1][" ".join(context)]
+
 
     def p_first(self, word):
         """Returns the probability for a given word to be the first in a context
@@ -78,31 +77,30 @@ class Ngram_Language_Model:
             Return:
                 p(float): probability to be first
          """
-        p = self.ngrams_dict[1][word] / sum(self.ngrams_dict[2].values())
+        # p = self.ngrams_dict[1][word] / sum(self.ngrams_dict[2].values())
+        p = self.ngrams_dict[1][word] / sum(self.model_dict.values())
         return p
 
-
-    def candidates(self, context):
+    def candidates(self, context, n_gram=None):
         """Returns a set of all possible ngrams sequences
 
             Args:
-                context (str):
+                context (list): the context to create candidates from
+                n_gram(int): if generating for n_gram < self.n, generates for the relevant dictionary
 
             Return:
                 List.
         """
         candi = set()  # initialize the candidates set
-        # for w in self.vocabulary:  # add every word in vocabulary to the given context
-        #     c = context + " " + w  # add every word in vocabulary to the given context
-        #     if c in self.model_dict:  # verify this sequence is in the model dictionary
-        #         candi.add((context, w, c))
 
         for w in self.vocabulary:  # add every word in vocabulary to the given context
             c = context.copy()
             c.append(w)
-            # c = context.append(w)  # add every word in vocabulary to the given context
-            if " ".join(c) in self.model_dict:  # verify this sequence is in the model dictionary
-                candi.add(w)
+
+            if n_gram is None:
+                if " ".join(c) in self.model_dict: candi.add(w)    # verify this sequence is in the model dictionary
+            else:
+                if " ".join(c) in self.ngrams_dict[n_gram]: candi.add(w)
 
         # candi1 = set(context+" "+w for w in self.vocabulary if context+" "+w in self.model_dict)
         return candi
@@ -123,34 +121,45 @@ class Ngram_Language_Model:
 
         """
 
-        if context == None:
-            str = None
+        if context == None: context=''
+        if len(context)==0:
+            context = random.choices(population=list(self.ngrams_dict[self.n-1].keys()), weights=self.ngrams_dict[self.n-1].values())[0]
+
+        context_l = re.split(r'\s+', context)  # the context as a list of words
+        str = context_l.copy()   # the generates string start for the context
+
+        if len(context_l) >= n: return " ".join(context_l[0:n])
+
+        # context is shorter than the needed length
+        if len(context_l) < self.n - 1:
+            ngram = context_l.copy()
+            for current_n in range(len(context_l)+1, min(n, self.n)):  # generate enough words for context for ngram
+                cands = self.candidates(ngram.copy(), current_n)
+                if not cands: return " ".join(str)  # no possible candidates -> end function.
+                chosen = self.choose(cands, ngram.copy(), current_n)  # choose the word with highest probability from the list of options for next word
+                str.append(chosen)
+                ngram.append(chosen)
+
+
+        # context is longer than needed
+        elif len(context_l) > self.n - 1:
+            ngram = (context_l[len(context_l) - (self.n - 1):]).copy()
+
+        # context is exactly self.n - 1
         else:
-            context_l = re.split(r'\s+', context)  # the context as a list of words
-            str = context_l.copy()
-            if len(context_l) < self.n - 1:
-                # there is no given context or not big enough
-                # add <s> or <s><s> or <s><s>...<s>
-                str = None
+            ngram = context_l.copy()
 
+        for i in range(0, n - len(context_l)):
+            cands = self.candidates(ngram.copy())
+            if not cands: break   # no possible candidates -> end function.
+            chosen = self.choose(cands, ngram.copy())  # choose the word with highest probability from the list of options for next word
+            str.append(chosen)
+            ngram.append(chosen)
+            ngram.pop(0)
 
-            else:  # context is same length as self.n-1 or longer
-                if len(context_l) > self.n - 1:  # context is loner than self.n-1
-                    # ngram = context.split(' ')   # TODO remove if not needed
-                    # ngram = ' '.join(ngram[len(ngram) - (self.n - 1):]) # TODO remove if not needed
-                    ngram = (context_l[len(context_l) - (self.n - 1):]).copy()
-                else:
-                    ngram = context_l.copy()  # context is exactly self.n - 1
-
-                for i in range(0, n - len(context_l)):
-                    chosen = self.choose(self.candidates(ngram.copy()), ngram.copy())  # choose the word with highest probability from the list of options for next word
-                    str.append(chosen)
-                    ngram.append(chosen)
-                    ngram.pop(0)
-                    # ngram = (ngram + " " + chosen).split(' ', 1)[1]   # TODO remove if not needed
         return " ".join(str)
 
-    def choose(self, candidates, context):
+    def choose(self, candidates, context, n_gram=None):
         """Return the word with the highest probability to be next in the sentence based on ngrams.
         If there are more than one word with the name probability, a random choice is made.
 
@@ -162,7 +171,7 @@ class Ngram_Language_Model:
         """
         probs = {}  # dictionary of the candidates with their probabilities
         for c in candidates:  # c is a tuple of (ngram list, predicted word)
-            probs[c] = self.P(c, context)  # calculate the probability for each candidate.
+            probs[c] = self.P(c, context, n_gram)  # calculate the probability for each candidate.
 
         return (random.choices(population=list(probs.keys()), weights=probs.values(), k=1))[0]
 
@@ -176,6 +185,7 @@ class Ngram_Language_Model:
            Returns:
                Float. The float should reflect the (log) probability.
         """
+        text = normalize_text(text)
         log_probs = []
         text_list = re.split(r'\s+', text)    # split the text to a list of words
         text_len = len(text_list)   # text word count
@@ -183,9 +193,8 @@ class Ngram_Language_Model:
             return  # TODO add throw exception
 
         log_probs.append(math.log(self.p_first(text_list[0])))   # calc first word based on the model's context distribution
-        if(text_len < self.n): r = text_len   # the text is shorter than n -- early stop of algorithm
-        else: r = self.n
-        for n in range(2, r):   # calc probability for words until there are enough for ngram according to self.n
+
+        for n in range(2, min(text_len, self.n)):   # calc probability for words until there are enough for ngram according to self.n
             ngram = " ".join(text_list[0:n])
             nm_gram = " ".join(text_list[0:n - 1])
             log_probs.append(math.log(self.ngrams_dict[n][ngram] / self.ngrams_dict[n - 1][nm_gram]))
@@ -195,6 +204,7 @@ class Ngram_Language_Model:
                 ngram = " ".join(text_list[i:i + self.n])
                 nm_gram = " ".join(text_list[i:i + self.n - 1])
                 log_probs.append(math.log(self.model_dict[ngram] / self.ngrams_dict[self.n - 1][nm_gram]))
+        # print(log_probs)
         return round(sum(log_probs), 3)
 
     def smooth(self, ngram):
@@ -224,6 +234,10 @@ def normalize_text(text):
     # nt = re.sub('([.,!?()%^$&-])', r' \1 ', nt)   # add space before/after a punctuation
     # nt = re.sub(r'\s+', ' ', nt)   # remove unwanted spaces (more than 1)
     nt = re.sub('(?<! )(?=[.,:?!@#$%^&*()\[\]\\\])|(?<=[.,:?!@#$%^&*()\[\]\\\])(?! )', r' ', nt)
+    tokens = re.split(r'\s+', nt)  # create a list of words out of the corpora
+    if tokens[-1] == '':
+        tokens.pop()
+        nt = " ".join(tokens)
     return nt
 
 

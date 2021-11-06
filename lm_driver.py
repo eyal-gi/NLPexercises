@@ -2,6 +2,10 @@ import sys
 import importlib
 
 import ex1
+
+import random
+random.seed(1489)
+
 text = 'A cat sat on the mat. A fat cat sat on the mat. A rat sat on the mat. The rat sat on the cat. A bat spat on the rat that sat on the cat on the mat.'
 nt = ex1.normalize_text(text) #lower casing, padding punctuation with white spaces
 print(nt)
