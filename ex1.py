@@ -263,7 +263,7 @@ class Ngram_Language_Model:
            Laplace smoothing should be applied if necessary.
 
            Words that are OOV (out of vocabulary) or context that doesn't appear in the model dictionary are treated by
-           laplace smoothing.
+           laplace smoothing. If laplace smoothing has been applied, all further words will be smoothed.
            The first n-1 words are evaluated by stupid backoff smoothing.
 
            Args:
@@ -272,15 +272,19 @@ class Ngram_Language_Model:
            Returns:
                Float. The float should reflect the (log) probability.
         """
-        apply_smoothing = False
+        apply_smoothing = False   # states is smoothing has been applied
 
         if not text:   # no text to evaluate
-            return # TODO add throw exception
+            raise Exception('A test must be inserted for evaluation')
         text = normalize_text(text)
         log_probs = []
-        text_list = re.split(r'\s+', text)    # split the text to a list of words
+
+        if self.chars is not True: text_list = re.split(r'\s+', text)    # split the text to a list of words
+        else: text_list = list(text)
+
         text_len = len(text_list)   # text word count
 
+        # Unigram model
         if self.n == 1:
             for w in text_list:
                 if w in self.vocabulary and apply_smoothing==False:
@@ -290,26 +294,37 @@ class Ngram_Language_Model:
                     log_probs.append(math.log(self.smooth(w, 1)))
             return round(sum(log_probs), 3)
 
-        if text_list[0] in self.vocabulary:
+        # Evaluation for the first word:
+        if text_list[0] in self.vocabulary:   # word from vocabulary
             log_probs.append(math.log(self.p_first(text_list[0])))   # calc first word based on the model's context distribution
-        else:
+        else:   # word OOV
             log_probs.append(math.log(self.smooth(text_list[0], 1)))
             apply_smoothing = True
 
         for n in range(2, min(text_len, self.n)):   # calc probability for words until there are enough for ngram according to self.n
-            ngram = " ".join(text_list[0:n])
-            nm_gram = " ".join(text_list[0:n - 1])
-            if ngram in self.ngrams_dict[n] and apply_smoothing==False:
-                log_probs.append(math.log(self.ngrams_dict[n][ngram] / self.ngrams_dict[n - 1][nm_gram]))
+            if self.chars is not True:
+                ngram = " ".join(text_list[0:n])
+                nm_gram = " ".join(text_list[0:n - 1])
             else:
+                ngram = "".join(text_list[0:n])
+                nm_gram = "".join(text_list[0:n - 1])
+
+            if ngram in self.ngrams_dict[n] and apply_smoothing==False:   # word from vocab and no smoothing
+                log_probs.append(math.log(self.ngrams_dict[n][ngram] / self.ngrams_dict[n - 1][nm_gram]))
+            else:   # word is OOV or smoothing was applied
                 apply_smoothing = True
                 log_probs.append(math.log(self.smooth(ngram, nm_gram, n)))
 
 
         if text_len >= self.n:
             for i in range(0, text_len - (self.n - 1)):
-                ngram = " ".join(text_list[i:i + self.n])
-                nm_gram = " ".join(text_list[i:i + self.n - 1])
+                if self.chars is not True:
+                    ngram = " ".join(text_list[i:i + self.n])
+                    nm_gram = " ".join(text_list[i:i + self.n - 1])
+                else:
+                    ngram = "".join(text_list[i:i + self.n])
+                    nm_gram = "".join(text_list[i:i + self.n - 1])
+
                 if ngram in self.model_dict and apply_smoothing==False:
                     log_probs.append(math.log(self.model_dict[ngram] / self.ngrams_dict[self.n - 1][nm_gram]))
                 else:
@@ -327,23 +342,27 @@ class Ngram_Language_Model:
             Returns:
                 float. The smoothed probability.
         """
+        # Initialize count values
         c_ngram = 0
         c_context = 0
 
+        # default model
         if given_n is None:
-            if ngram in self.model_dict:
+            if ngram in self.model_dict:   # ngram from vocabulary
                 c_ngram = self.model_dict[ngram]
-            if nm_gram in self.ngrams_dict[self.n-1]:
+            if nm_gram in self.ngrams_dict[self.n-1]:   # n-1 gram from vocabulary
                 c_context = self.ngrams_dict[self.n-1][nm_gram]
+        # not default model
         else:
-            if ngram in self.ngrams_dict[given_n]:
+            if ngram in self.ngrams_dict[given_n]:   # ngram from vocabulary
                 c_ngram = self.ngrams_dict[given_n][ngram]
-            if nm_gram in self.ngrams_dict[given_n - 1]:
+            if nm_gram in self.ngrams_dict[given_n - 1]:   # n-1 gram from vocabulary
                 c_context = self.ngrams_dict[given_n - 1][nm_gram]
 
-        if given_n is None: v = len(self.ngrams_dict[self.n-1])
-        else: v = len(self.ngrams_dict[given_n-1])
+        if given_n is None: v = len(self.ngrams_dict[self.n-1])   # default model
+        else: v = len(self.ngrams_dict[given_n-1])   # not default model
 
+        # Unigram model
         if given_n is not None and given_n==1:
             return (c_ngram + 1) / (len(self.vocabulary)+1)
 
