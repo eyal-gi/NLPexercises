@@ -3,7 +3,7 @@ import sys
 import random
 import math
 import collections
-random.seed(1489)
+# random.seed(1489)
 import ex1
 
 
@@ -11,17 +11,18 @@ text = 'A cat sat on the mat. A fat cat sat on the mat. A rat sat on the mat. Th
 # text = open('big.txt').read()
 # text = 'a cat sat a rat sat a bat sat'
 nt = ex1.normalize_text(text)
-# print(nt)
-lm = ex1.Ngram_Language_Model(n=3, chars=False)
+print(nt)
+lm = ex1.Ngram_Language_Model(n=5, chars=True)
 lm.build_model(nt)  #*
-# print(lm.get_model_dictionary())
+print(lm.get_model_dictionary())
 
 # nt = re.sub('(?<! )(?=[.,!?()])|(?<=[.,!?()>])(?!abc)', r' ', "abc,")
-t = lm.generate('a', n=30)
+t = lm.generate('a ca', n=30)
 print(t)
 # print(lm.evaluate(t))
 # print(lm.evaluate("a cat sat on the mat . a fat cat sat on the mat . a bat spat on the mat . a rat sat on the mat ."))
-# print(lm.evaluate("a cat sat on the mat"))
+# print(lm.evaluate("p a cat eyal ginosar gever on the mat"))
+# print(lm.evaluate(""))
 # print(lm.evaluate('the rat sat on the cat'))
 # # print(lm.get_model_dictionary())
 # n=3
