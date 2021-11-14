@@ -487,7 +487,7 @@ class Spell_Checker:
 
     def spell_check(self, text, alpha):
         """ Returns the most probable fix for the specified text. Use a simple
-            noisy channel model is the number of tokens in the specified text is
+            noisy channel model if the number of tokens in the specified text is
             smaller than the length (n) of the language model.
 
             Args:
@@ -498,6 +498,55 @@ class Spell_Checker:
                 A modified string (or a copy of the original if no corrections are made.)
         """
         # TODO: create this method
+        candidates_dict = {}     # a dictionary of a candidate and it's score.
+
+        score = math.log(_Pxw()) + self.evaluate(c)   # P(x|w) the conditional probability of the word to correct given candidate
+                                                      # log(P(c)) is the log probability of the candidate
+        candidates_dict[c] = score   # add the score to the candidate
+
+        return max(candidates_dict.keys(), key=candidates_dict.get)   # return the string with the highest score
+
+    def _candidates(self, text):
+        """ Returns a set of possible corrected texts. Each word in the text will get a set of candidates
+            of its own, resulting in a set of all possible texts when only one word is corrected in each text.
+            The text itself is also considered a valid candidate
+
+            Args:
+
+            Return:
+                A dictionary of candidates text and the probability of the correction
+
+        """
+        return
+
+    def _word_candidates(self, word):
+        """ Returns a set of all possible corrections to the given word. The returned words will only
+            be known words from the language model corpora. The corrections are under the assumption
+            that there is only 1 error in the word (i.e., deletion/insertion/substitution/transposition).
+
+
+            Args:
+
+            Return:
+                A dictionary of candidates words and their probabilities.
+
+         """
+        return
+
+    def _known(self, words):
+        """The subset of `words` that appear in the dictionary of WORDS."""
+        return set(w for w in words if w in WORDS)
+
+    def _Pxw(self, x, w):
+        """ Returns the conditional probability of the x given w
+
+
+        """
+
+
+
+
+
 
 
 def who_am_i():  # this is not a class method
