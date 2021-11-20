@@ -394,7 +394,6 @@ def normalize_text(text):
       Returns:
         string. the normalized text.
     """
-    # todo: add- remove ' from text
     nt = text.lower()  # lower-case the text
 
     nt = re.sub('(?<! )(?=[._=,\-:?\"!@#$%^&*()\[\]\\\])|(?<=[._=,\-:?\"!@#$%^&*()\[\]\\\])(?! )', r' ', nt)
@@ -696,7 +695,6 @@ class Spell_Checker:
             return ''
         self.__alpha = alpha
         candidates_dict = self._candidates(normalize_text(text))  # a dictionary of a candidate and it's score.
-        print(candidates_dict)   # todo: delete this line
 
 
         return max(candidates_dict.keys(), key=candidates_dict.get)  # return the string with the highest score
@@ -770,10 +768,20 @@ class Spell_Checker:
         """The subset of `words` that appear in the language model vocabulary."""
         known = []
         for w in words:
-            if w['word'] in self.__vocabulary and w not in known:  # note: w['word'] is the corrected word
-                known.append(w)
+            if w['word'] in self.__vocabulary or self._is_two_words(w['word']):  # note: w['word'] is the corrected word
+                if w not in known:
+                    known.append(w)
 
         return known
+
+    def _is_two_words(self, word):
+        words_list = re.split(r'\s+', word)
+        if len(words_list) > 1:
+            for w in words_list:
+                if w not in self.__vocabulary:
+                    return False
+            return True
+        return False
 
     def _edits1(self, word):
         """ All edits that are one edit away from `word`.
@@ -789,7 +797,7 @@ class Spell_Checker:
                 dictionary - A list of dictionaries.
         """
 
-        letters = 'abcdefghijklmnopqrstuvwxyz\''
+        letters = 'abcdefghijklmnopqrstuvwxyz\' '
         edits = []
 
         splits = [(word[:i], word[i:]) for i in range(len(word) + 1)]

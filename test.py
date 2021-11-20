@@ -17,5 +17,5 @@ sc = ex2.Spell_Checker()
 # sc.build_model(nt, 3)
 sc.add_language_model(lm)
 sc.add_error_tables(spelling_confusion_matrices.error_tables)
-print(sc.spell_check('two of thew apples', alpha=0.95))
+print(sc.spell_check('you should forget aboutit', alpha=0.95))
 
