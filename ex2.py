@@ -521,6 +521,8 @@ class Spell_Checker:
             else:
                 errors_table[e_type][chars] += 1
 
+        self.error_tables = errors_table
+
     def _identify_error(self, x, w):
         """ Returns the type of error that is found between erroneous word x and correct word w
 
