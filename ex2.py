@@ -25,7 +25,7 @@ class Ngram_Language_Model:
         self.model_dict = defaultdict(
             int)  # a dictionary of the form {ngram:count}, holding counts of all ngrams in the specified text.
         self.chars = chars
-        self.vocabulary = None  # a set of the types in the text
+        self.__vocabulary = None  # a set of the types in the text
         self.ngrams_dict = defaultdict(int)  # dictionary of ngrams dictionaries
 
     def build_model(self, text):
@@ -53,7 +53,7 @@ class Ngram_Language_Model:
                 self.ngrams_dict[self.n - j] = defaultdict(int, collections.Counter(
                     " ".join(tuple(tokens[i:i + self.n - j])) for i in range(len(tokens) - (self.n - j))))
 
-        self.vocabulary = set(tokens)
+        self.__vocabulary = set(tokens)
 
     def get_model_dictionary(self):
         """Returns the dictionary class object
@@ -127,7 +127,7 @@ class Ngram_Language_Model:
         """
         candi = set()  # initialize the candidates set
 
-        for w in self.vocabulary:  # add every word in vocabulary to the given context
+        for w in self.__vocabulary:  # add every word in vocabulary to the given context
             c = context.copy()
             c.append(w)
 
@@ -142,7 +142,7 @@ class Ngram_Language_Model:
                 else:
                     if "".join(c) in self.ngrams_dict[n_gram]: candi.add(w)
 
-        # candi1 = set(context+" "+w for w in self.vocabulary if context+" "+w in self.model_dict)
+        # candi1 = set(context+" "+w for w in self.__vocabulary if context+" "+w in self.model_dict)
         return candi
 
     def generate_unigram(self, context, n):
@@ -298,7 +298,7 @@ class Ngram_Language_Model:
         # Unigram model
         if self.n == 1:
             for w in text_list:
-                if w in self.vocabulary and apply_smoothing == False:
+                if w in self.__vocabulary and apply_smoothing == False:
                     log_probs.append(math.log(self.model_dict[w] / sum(self.model_dict.values())))
                 else:  # word is OOV
                     apply_smoothing = True
@@ -306,7 +306,7 @@ class Ngram_Language_Model:
             return round(sum(log_probs), 3)
 
         # Evaluation for the first word:
-        if text_list[0] in self.vocabulary:  # word from vocabulary
+        if text_list[0] in self.__vocabulary:  # word from vocabulary
             log_probs.append(
                 math.log(self.p_first(text_list[0])))  # calc first word based on the model's context distribution
         else:  # word OOV
@@ -378,7 +378,7 @@ class Ngram_Language_Model:
 
         # Unigram model
         if given_n is not None and given_n == 1:
-            return (c_ngram + 1) / (len(self.vocabulary) + 1)
+            return (c_ngram + 1) / (len(self.__vocabulary) + 1)
 
         return (c_ngram + 1) / (c_context + v)
 
@@ -394,6 +394,7 @@ def normalize_text(text):
       Returns:
         string. the normalized text.
     """
+    # todo: add- remove ' from text
     nt = text.lower()  # lower-case the text
     nt = re.sub('(?<! )(?=[.,:?!@#$%^&*()\[\]\\\])|(?<=[.,:?!@#$%^&*()\[\]\\\])(?! )', r' ', nt)
     tokens = re.split(r'\s+', nt)  # create a list of words out of the corpora
@@ -421,6 +422,10 @@ class Spell_Checker:
 
         self.lm = lm
         self.error_tables = {}
+        self.__vocabulary = set()
+        self.__chars_dict = {}
+        self.__alpha = None
+        self.unigrams = {}
 
     def build_model(self, text, n=3):
         """Returns a language model object built on the specified text. The language
@@ -437,7 +442,8 @@ class Spell_Checker:
 
         self.lm = Ngram_Language_Model(n=n)
         self.lm.build_model(text=text)
-        self.vocabulary = set(re.split(r'\s+', normalize_text(text)))  # create a list of words out of the corpora)
+        self.__vocabulary = set(re.split(r'\s+', normalize_text(text)))  # create a list of words out of the corpora)
+        self.__chars_dict = self._create_chars_dict(text)
 
     def add_language_model(self, lm):
         """Adds the specified language model as an instance variable.
@@ -447,7 +453,8 @@ class Spell_Checker:
                 lm: a language model object
         """
         self.lm = lm
-        self.vocabulary = self._create_vocabulary()
+        self._create_vocabulary()
+        self.__chars_dict = self._create_chars_dict()
 
         # def learn_error_tables(self, errors_file):
         """Returns a nested dictionary {str:dict} where str is in:
@@ -478,18 +485,78 @@ class Spell_Checker:
     def _create_vocabulary(self):
         """ Creates the vocabulary of the language model based on the model dictionary """
         tokens = set()
+        unigram = {}
 
         # go over all the ngrams in the model and add the first word of the ngram to the tokens list.
         for ng in self.lm.get_model_dictionary().keys():
             words = re.split(r'\s+', ng)
-            tokens.add(words[0])
+            word = words[0]
+            tokens.add(word)
+            if word not in unigram.keys():
+                unigram[word] = self.lm.get_model_dictionary()[ng]
+            else:
+                unigram[word] += self.lm.get_model_dictionary()[ng]
 
         # Since the I only take the first word of every ngram, for the last on I insert all the words in it.
-        last_words = re.split(r'\s+', self.lm.get_model_dictionary().keys()[-1])
+        last_words = re.split(r'\s+', list(self.lm.get_model_dictionary().keys())[-1])
         for w in last_words[1:]:
             tokens.add(w)
+            if w not in unigram.keys():
+                unigram[w] = self.lm.get_model_dictionary()[ng]
+            else:
+                unigram[w] += self.lm.get_model_dictionary()[ng]
 
-        self.vocabulary = tokens
+        self.__vocabulary = tokens
+        self.unigrams = defaultdict(int, unigram)
+
+    def _create_chars_dict(self, text=None):
+        """ Create unigram and bigram chars dictionaries.
+            If the language model is created from scratch, the dictionaries are calculated directly
+            from the given text.
+            If a language model is added, the dictionaries are calculated from the lm ngram dictionary/
+        """
+        # If a language model is added and not created:
+        if text is None:
+            # text = normalize_text(open('big.txt').read())
+            text = " ".join(self.unigrams.keys())
+            tokens = list(text)
+            dict = { 'bigram': { },
+                     'unigram': { }
+                     }
+            for j in range(2):
+                if j == 0: ngram = 'bigram'
+                else: ngram = 'unigram'
+
+                for key in self.unigrams.keys():
+                    for i in range( len(key) - (2-j) ):
+                        chars = key[i:i + 2 - j]
+                        if chars not in dict.keys():
+                            dict[ngram][chars] = self.unigrams[key]
+                        else:
+                            dict[ngram][chars] += self.unigrams[key]
+
+                # for k in range(len(tokens) - (2 - j)):
+                #     chars = text[k:k + 2 - j]
+                #     if chars not in dict.keys():
+                #         for key in self.unigrams.keys():
+                #             if chars in key:
+                #                 if chars not in dict.keys():
+                #                     dict[ngram] = self.unigrams[key]
+                #                 else:
+                #                     dict[ngram] += self.unigrams[key]
+
+        # --------------------------------------------------------------------
+        # if language model is created:
+        else:
+            tokens = list(text)
+            dict = {}
+            for j in range(2):
+                if j == 0: ngram = 'bigram'
+                else: ngram = 'unigram'
+                dict[ngram] = defaultdict(int, collections.Counter(
+                    text[i:i + 2 - j] for i in range(len(tokens) - (2 - j))))
+
+        return dict
 
     def add_error_tables(self, error_tables):
         """ Adds the speficied dictionary of error tables as an instance variable.
@@ -525,13 +592,9 @@ class Spell_Checker:
             Return:
                 A modified string (or a copy of the original if no corrections are made.)
         """
-        # TODO: create this method
-        candidates_dict = {}  # a dictionary of a candidate and it's score.
-
-        score = math.log(_Pxw()) + self.evaluate(
-            c)  # P(x|w) the conditional probability of the word to correct given candidate
-        # log(P(c)) is the log probability of the candidate
-        candidates_dict[c] = score  # add the score to the candidate
+        self.__alpha = alpha
+        candidates_dict = self._candidates(normalize_text(text))  # a dictionary of a candidate and it's score.
+        print(candidates_dict)
 
         return max(candidates_dict.keys(), key=candidates_dict.get)  # return the string with the highest score
 
@@ -543,39 +606,64 @@ class Spell_Checker:
             Args:
 
             Return:
-                A dictionary of candidates text and the probability of the correction
+                A dictionary of candidates text and the probability of the correction - P(x|w)P(W)
 
         """
-        return
+        candidates = {}
+        text_list = re.split(r'\s+', text)
+        check_words = [t for t in text_list if t not in self.__vocabulary]   # initially only look for OOV words.
+
+        # if all words are from vocabulary, check all words
+        if not check_words:
+            check_words = text_list.copy()
+
+        for w in check_words:
+            word_candidates = self._word_candidates(w)  # get all possible candidates and their probability
+            for c in word_candidates:
+                new_text = text_list.copy()
+                self._list_replace(lst=new_text, old=w, new=c)  # create the new text with corrected word
+                corrected_candidate = ' '.join(new_text)
+                word_pxw = word_candidates[c]
+                text_eval = self.evaluate(corrected_candidate)
+
+                candidates[corrected_candidate] = math.log(word_pxw) + text_eval
+
+        return candidates
 
     def _word_candidates(self, word):
-        """ Returns a set of all possible corrections to the given word. The returned words will only
+        """ Returns a dictionary of all possible corrections to the given word. The returned words will only
             be known words from the language model corpora. The corrections are under the assumption
             that there is only 1 error in the word (i.e., deletion/insertion/substitution/transposition).
 
 
             Args:
+                word(str): word to create candidates from.
 
             Return:
-                A dictionary of candidates words and their probabilities.
+                A dictionary of candidates words and their probabilities. 'word':, 'pxw':
 
          """
-        candidates = {}
-        candidates_list = self.edits1(word)  # all the possible edits of word
-        candidates_list = self._known(candidates_list)  # subset only known words
-        # candidates_list.append((word, '', 'original'))      # add the original word as a candidate as well
-        # calculate probability P(x|w):
-        for c in candidates_list:
-            candidates['word'] = c['word']
-            candidates['pxw'] = self._Pxw(c)
+        word_candidates = {}
+        word_candidates_list = self._edits1(word)  # all the possible edits of word
+        word_candidates_list.append({'word': word, 'chars': '', 'error': 'original'})      # add the original word as a candidate as well
+        word_candidates_list = self._known(word_candidates_list)  # subset only known words
 
-        return candidates
+        # if the original word nor any edit is a word from the vocabulary, return only the original word with a smoothed probability
+        if not word_candidates_list:
+            word_candidates[word] = 1 / sum(self.__chars_dict['bigram'].values())
+            return word_candidates
+
+        # calculate probability P(x|w):
+        for c in word_candidates_list:
+            word_candidates[c['word']] = self._Pxw(c)
+
+        return word_candidates
 
     def _known(self, words):
         """The subset of `words` that appear in the language model vocabulary."""
         known = []
         for w in words:
-            if w['word'] in self.vocabulary and w not in known:  # w['word'] is the corrected word
+            if w['word'] in self.__vocabulary and w not in known:  # note: w['word'] is the corrected word
                 known.append(w)
 
         return known
@@ -604,7 +692,7 @@ class Spell_Checker:
 
                 # deletion errors
                 if L:
-                    chars = L[-1] + c  # xi-1=L[-1], wi=c
+                    chars = L[-1] + c  # chars=[wi-1,wi]  (wi-1=L[-1], wi=c)
                 else:
                     chars = '#' + c
                 # edits.append( (L + c + R, chars, 'deletion') )
@@ -612,7 +700,7 @@ class Spell_Checker:
 
                 # substitution errors
                 if R:
-                    chars = R[0] + c  # xi=R[0], wi=c
+                    chars = R[0] + c  # chars=[xi,wi] (xi=R[0], wi=c)
                     # edits.append( (L + c + R[1:], chars, 'substitution') )
                     edits.append({'word': L + c + R[1:], 'chars': chars, 'error': 'substitution'})
 
@@ -620,7 +708,7 @@ class Spell_Checker:
             if R:
                 # chars is the inserted char and the char before it.
                 if L:
-                    chars = L[-1] + R[0]  # wi-1=L[-1], xi=R[0]
+                    chars = L[-1] + R[0]  # chars=[wi-1,xi] (wi-1=L[-1], xi=R[0])
                 else:
                     chars = '#' + R[0]
                 # edits.append( (L + R[1:], chars, 'insertion') )
@@ -628,7 +716,7 @@ class Spell_Checker:
 
             # transposition errors
             if len(R) > 1:
-                chars = R[1] + R[0]
+                chars = R[1] + R[0]   # chars=[wi, wi+1]
                 edits.append({'word': L + R[1] + R[0] + R[2:], 'chars': chars, 'error': 'transposition'})
 
         return edits
@@ -641,56 +729,66 @@ class Spell_Checker:
 
             Return:
                 The probability on x given w.
-                :rtype: float
-
         """
+        chars = candidate['chars']
+        error_type = candidate['error']
+        # initiating variables:
+        error_count = 0
         normalization = 0
-        smooth_val = 1000 # todo: change!
 
-        if candidate['error'] is 'deletion':
+        if error_type == 'original': return self.__alpha
+
+        if error_type == 'deletion':
             # calculate counter:
-            try:
-                error_count = self.error_tables['deletion'][candidate['chars']]
-            except:
-                error_count = 1
+            if chars in self.error_tables['deletion']:
+                error_count = self.error_tables['deletion'][chars]
 
             # calculate denominator:
-            normalization = 0
+            if chars[0] == '#': chars = ' ' + chars[1]      # todo: maybe change to better coding
+            if chars in self.__chars_dict['bigram']:
+                normalization = self.__chars_dict['bigram'][chars]
 
-        elif candidate['error'] is 'insertion':
+        elif error_type == 'insertion':
             # calculate counter:
-            try:
-                error_count = self.error_tables['insertion'][candidate['chars']]
-            except:
-                error_count = 1
-
+            if chars in self.error_tables['insertion']:
+                error_count = self.error_tables['insertion'][chars]
             # calculate denominator:
-            normalization = 0
+            if chars[0] == '#': chars = ' '   # todo: maybe change to better coding
+            if chars[0] in self.__chars_dict['unigram']:
+                normalization = self.__chars_dict['unigram'][chars[0]]
 
-        elif candidate['error'] is 'substitution':
+        elif error_type == 'substitution':
             # calculate counter:
-            try:
-                error_count = self.error_tables['substitution'][candidate['chars']]
-            except:
-                error_count = 1
-
+            if chars in self.error_tables['substitution']:
+                error_count = self.error_tables['substitution'][chars]
             # calculate denominator:
-            normalization = 0
+            if chars[1] in self.__chars_dict['unigram']:
+                normalization = self.__chars_dict['unigram'][chars[1]]
 
-        elif candidate['error'] is 'transposition':
+        else:   # error_type is 'transposition'
             # calculate counter:
-           try:
-                error_count = self.error_tables['transposition'][candidate['chars']]
-           except:
-                error_count = 1
-
+            if chars in self.error_tables['transposition']:
+                error_count = self.error_tables['transposition'][chars]
             # calculate denominator:
-           normalization = 0
+            if chars in self.__chars_dict['bigram']:
+                normalization = self.__chars_dict['bigram'][chars]
 
-        if normalization==0:
-            normalization = smooth_val   # todo: smooth value??
+        if error_count == 0:
+            error_count = 1
+        if normalization == 0:
+            normalization = sum(self.__chars_dict['bigram'].values())
 
-        return error_count / normalization
+        return (error_count / normalization) * (1-self.__alpha)
+
+    def _list_replace(self, lst, old, new):
+        """replace list elements (inplace)"""
+        i = -1
+        try:
+            while 1:
+                i = lst.index(old, i + 1)
+                lst[i] = new
+        except ValueError:
+            pass
 
 
 def who_am_i():  # this is not a class method
