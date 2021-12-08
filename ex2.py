@@ -695,8 +695,6 @@ class Spell_Checker:
             return ''
         self.__alpha = alpha
         candidates_dict = self._candidates(normalize_text(text))  # a dictionary of a candidate and it's score.
-
-
         return max(candidates_dict.keys(), key=candidates_dict.get)  # return the string with the highest score
 
     def _candidates(self, text):
