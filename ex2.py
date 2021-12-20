@@ -461,6 +461,8 @@ class Spell_Checker:
         self.__vocabulary = set(re.split(r'\s+', normalize_text(text)))  # create a list of words out of the corpora)
         self.__chars_dict = self._create_chars_dict(text)
 
+        return self.lm
+
     def add_language_model(self, lm):
         """ Adds the specified language model as an instance variable.
             (Replaces an older LM dictionary if set)
